@@ -1,0 +1,11 @@
+---
+- name: Install
+  hosts: target
+  roles:
+#    - docker
+#    - traefik
+#    - { role: ldap, when: use_ldap == 1 }
+    - { role: monitor, when: use_monitor == 1 }
+    - { role: portainer, when: use_portainer == 1 }
+#    - { role: prosody, when: use_xmpp == 1 }
+    - hubzilla

@@ -1,0 +1,117 @@
+version: '3.7'
+configs:
+  datasource:
+    file: ./datasource.yaml
+  prometheus:
+    file: ./prometheus.yml
+{% if use_ldap==1 %}
+  ldap:
+    file: ./ldap.toml
+{% endif %}
+networks:
+  net:
+    driver: overlay
+{% if use_ldap==1 %}
+  ldap_auth:
+    external: true
+{% endif %}
+  
+volumes:
+  prometheus:
+#    driver: rbd
+#    driver_opts:
+#      size: 1024
+#      mkfsOptions: -Eroot_owner=65534:65534
+  grafana:
+#    driver: rbd
+#    driver_opts:
+#      size: 128
+#      mkfsOptions: -Eroot_owner=472:472
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+    - "3000:3000"
+    configs:
+    - source: datasource
+      target: /etc/grafana/provisioning/datasources/prometheus.yaml
+{% if use_ldap==1 %}
+    - source: ldap
+      target: /etc/grafana/ldap.toml
+{% endif %}
+    environment:
+{% if grafana_external==1 %}
+      GF_SERVER_ROOT_URL: "https://{{ domain }}/external/grafana"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+{% endif %}
+      GF_SERVER_ENABLE_GZIP: "true"
+      GF_SECURITY_ADMIN_PASSWORD: "{{ admin_password }}"
+{% if use_ldap==1 %}
+      GF_AUTH_LDAP_ENABLED: "true"
+      GF_AUTH_LDAP_CONFIG_FILE: "/etc/grafana/ldap.toml"
+      GF_AUTH_LDAP_ALLOW_SIGN_UP: "false"
+{% endif %}
+    volumes:
+    - grafana:/var/lib/grafana
+    networks:
+    - net
+{% if use_ldap==1 %}
+    - ldap_auth
+{% endif %}
+{% if grafana_external==1 %}
+    deploy:
+      labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`{{ domain }}`) && PathPrefix(`/external/grafana`)
+      - traefik.http.routers.grafana.tls=true
+      - traefik.http.routers.grafana.tls.certresolver=le
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+{% endif %}
+    
+  prometheus:
+    image: prom/prometheus:latest
+    configs:
+    - source: prometheus
+      target: /etc/prometheus/prometheus.yml
+    ports:
+    - "9090:9090"
+    volumes:
+    - prometheus:/prometheus
+    networks:
+    - net
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    hostname: "{{ hname }}"
+    command:
+    - '--path.procfs=/host/proc'
+    - '--path.sysfs=/host/sys'
+    - '--path.rootfs=/host'
+    - '--collector.filesystem.ignored-mount-points="^(/rootfs|/host|)/(sys|proc|dev|host|etc)($$|/)"'
+    - '--collector.filesystem.ignored-fs-types="^(sys|proc|auto|cgroup|devpts|ns|au|fuse\.lxc|mqueue)(fs|)$$"'
+    networks:
+    - net
+    volumes:
+    - /proc:/host/proc:ro
+    - /sys:/host/sys:ro
+    - /:/rootfs:ro
+    deploy:
+      mode: global
+
+  cadvisor:
+    image: sebt3/cadvisor:0.35.0
+    command: -logtostderr -docker_only
+    hostname: "{{ hname }}"
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - /:/rootfs:ro
+    - /var/run:/var/run
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+    - net
+    deploy:
+      mode: global
+

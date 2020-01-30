@@ -1,0 +1,47 @@
+version: '3.5'
+volumes:
+  data:
+  conf:
+  web:
+networks:
+  auth:
+configs:
+  nginx:
+    file: nginx.conf
+
+services:
+  ldap:
+    image: sebt3/openldap:2.4.48
+    environment:
+      LDAP_DOMAIN: "{{ domain }}"
+      LDAP_CONFIG_PASSWORD: "{{ admin_password }}"
+      LDAP_ADMIN_PASSWORD: "{{ admin_password }}"
+    volumes:
+      - data:/var/lib/ldap
+      - conf:/etc/ldap/slapd.d
+    networks:
+    - auth
+
+  fusiondirectory:
+    image: sebt3/fusiondirectory:1.3
+    environment:
+      LDAP_HOST: "ldap"
+      LDAP_DOMAIN: "{{ domain }}"
+      LDAP_CONFIG_PASSWORD: "{{ admin_password }}"
+      LDAP_ADMIN_PASSWORD: "{{ admin_password }}"
+    volumes:
+      - web:/var/web
+    networks:
+    - auth
+  nginx:
+    image: nginx:alpine
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+    volumes:
+      - web:/var/web
+    networks:
+    - auth
+    ports:
+      - target: 80
+        published: 8081

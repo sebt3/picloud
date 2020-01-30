@@ -1,0 +1,12 @@
+---
+#- debug: 
+#    msg: "{{ ldap_base }}"
+
+- name: Generate the stack configuration
+  template:
+    src: compose.yaml.j2
+    dest: /tmp/prosody-compose.yaml
+
+- name: Install prosody
+  shell: >
+     docker stack deploy -c /tmp/prosody-compose.yaml prosody

@@ -1,0 +1,15 @@
+- name: Generate the stack configuration
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+  with_items:
+    - { src: 'compose.yaml.j2',    dest: '/tmp/monitor-compose.yaml', desc: 'Compose' }
+    - { src: 'datasource.yaml.j2', dest: '/tmp/datasource.yaml',      desc: 'Grafana datasource' }
+    - { src: 'prometheus.yml.j2',  dest: '/tmp/prometheus.yml',       desc: 'prometheus config' }
+    - { src: 'ldap.toml.j2',       dest: '/tmp/ldap.toml',            desc: 'Grafana ldap config' }
+  loop_control:
+    label: "{{ item.desc }}"
+
+- name: Install the monitoring stack
+  shell: >
+     docker stack deploy -c /tmp/monitor-compose.yaml monitor

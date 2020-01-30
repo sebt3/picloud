@@ -1,0 +1,102 @@
+version: '3.5'
+networks:
+  hubzilla:
+  public:
+    external: true
+{% if use_ldap==1 %}
+  ldap_auth:
+    external: true
+{% endif %}
+{% if use_xmpp==1 %}
+  prosody_http:
+    external: true
+{% endif %}
+volumes:
+  voldb:
+  volweb:
+configs:
+  nginx:
+    file: nginx.conf
+
+services:
+  postgres:
+    image: postgres:12-alpine
+    environment:
+      POSTGRES_PASSWORD: hubzilla
+      POSTGRES_USER: hubzilla
+      POSTGRES_DB: hub
+    volumes:
+      - voldb:/var/lib/postgresql/data
+    networks:
+    - hubzilla
+
+  redis:
+    image: redis:alpine
+    networks:
+      - hubzilla
+
+  nginx:
+    image: nginx:alpine
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+    volumes:
+      - volweb:/var/www/html
+    networks:
+      - hubzilla
+      - public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.middlewares.compress.compress=true
+        - traefik.http.routers.hubzilla.rule=Host(`{{ domain }}`) 
+        - traefik.http.routers.hubzilla.tls=true
+        - traefik.http.routers.hubzilla.tls.certresolver=le
+        - traefik.http.routers.hubzilla.entrypoints=websecure
+        - traefik.http.routers.hubzilla.middlewares=compress
+        - traefik.http.services.hubzilla.loadbalancer.server.port=80
+        - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+        - traefik.http.routers.redirect.rule=Host(`{{ domain }}`)
+        - traefik.http.routers.redirect.middlewares=redirect-to-https
+        - traefik.http.routers.redirect.entrypoints=web
+
+
+  hubzilla:
+    image: sebt3/hubzilla:4.6
+    depends_on:
+      - postgres
+      - nginx
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_TYPE: pgsql
+      DB_NAME: hub
+      DB_USER: hubzilla
+      DB_PASSWORD: hubzilla
+      REDIS_PATH: tcp://redis
+      HUBZILLA_DOMAIN: "{{ domain }}"
+      HUBZILLA_ADMIN: "{{ email }}"
+{% if use_ldap==1 %}
+      LDAP_SERVER: "ldap"
+      LDAP_BASE: "{{ ldap_base }}"
+      LDAP_ROOT_DN: "cn=admin,{{ ldap_root }}"
+      LDAP_ADMIN_PASSWORD: "{{ admin_password }}"
+{% endif %}
+      ADDON_LIST: "nsfw superblock content_import gallery gnusoc diaspora pubcrawl {% if use_ldap==1 %}ldapauth{% endif %} {% if use_xmpp==1 %}xmpp{% endif %}"
+    networks:
+      - hubzilla
+{% if use_ldap==1 %}
+      - ldap_auth
+{% endif %}
+    volumes:
+      - volweb:/var/www/html
+  cron:
+    image: sebt3/hubzilla:4.6
+    depends_on:
+      - postgres
+    command: ["crond", "-f"]
+    networks:
+      - hubzilla
+    volumes:
+      - volweb:/var/www/html
+

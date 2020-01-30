@@ -1,0 +1,49 @@
+version: '3.5'
+volumes:
+  data:
+  certs:
+    external:
+      name: traefik_certs
+networks:
+  http:
+{% if use_ldap==1 %}
+  ldap_auth:
+    external: true
+{% endif %}
+  public:
+    external: true
+
+services:
+  prosody:
+    image: sebt3/prosody:0.11.4
+    environment:
+      PROSODY_ADMINS: "{{ email|quote }}"
+      PROSODY_HOST: "{{ domain }}"
+      ENABLE_BOSH: "yes"
+{% if use_ldap==1 %}
+      LDAP_SERVER: "ldap"
+      LDAP_BASE: "{{ ldap_base }}"
+      LDAP_ROOT_DN: "cn=admin,{{ ldap_root }}"
+      LDAP_ADMIN_PASSWORD: "{{ admin_password }}"
+{% endif %}
+    ports:
+      - 5222:5222
+      - 5269:5269
+#      - 5281:5281
+    volumes:
+      - data:/var/lib/prosody
+      - certs:/etc/prosody/certs:ro
+    networks:
+    - http
+{% if use_ldap==1 %}
+    - ldap_auth
+{% endif %}
+    - public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.prosody.rule=Host(`{{ domain }}`) && PathPrefix(`/http-bind`)
+        - traefik.http.routers.prosody.tls=true
+        - traefik.http.routers.prosody.tls.certresolver=le
+        - traefik.http.routers.prosody.entrypoints=websecure
+        - traefik.http.services.prosody.loadbalancer.server.port=5280

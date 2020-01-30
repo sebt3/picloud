@@ -1,0 +1,4 @@
+---
+ldap_root: "{{ domain | regex_replace('\\.',',dc=') | regex_replace('^', 'dc=') }}"
+ldap_base: "{{ ldap_root | regex_replace('^', 'ou=people,') }}"
+
