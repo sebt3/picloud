@@ -1,8 +1,15 @@
 - name: Generate the stack configuration
   template:
-    src: compose.yaml.j2
-    dest: /tmp/traefik-compose.yaml
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+  with_items:
+    - { src: 'compose.yaml.j2',   dest: "/tmp/{{ stack }}-compose.yaml",   desc: 'Compose' }
+  loop_control:
+    label: "{{ item.desc }}"
 
-- name: Install traefik
-  shell: >
-     docker stack deploy -c /tmp/traefik-compose.yaml traefik
+- name: "Install {{ stack }}"
+  docker_stack:
+    state: present
+    name: "{{ stack }}"
+    compose:
+      - "/tmp/{{ stack }}-compose.yaml"

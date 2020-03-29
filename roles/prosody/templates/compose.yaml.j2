@@ -15,7 +15,7 @@ networks:
 
 services:
   prosody:
-    image: sebt3/prosody:0.11.4
+    image: {{ prosody_image }}
     environment:
       PROSODY_ADMINS: "{{ email|quote }}"
       PROSODY_HOST: "{{ domain }}"
@@ -42,8 +42,16 @@ services:
     deploy:
       labels:
         - traefik.enable=true
-        - traefik.http.routers.prosody.rule=Host(`{{ domain }}`) && PathPrefix(`/http-bind`)
-        - traefik.http.routers.prosody.tls=true
-        - traefik.http.routers.prosody.tls.certresolver=le
-        - traefik.http.routers.prosody.entrypoints=websecure
-        - traefik.http.services.prosody.loadbalancer.server.port=5280
+        - traefik.http.services.{{ stack }}.loadbalancer.server.port=5280
+{% if domain_wildcard!=1 %}
+        - traefik.http.routers.{{ stack }}.rule=Host(`{{ domain }}`) && PathPrefix(`/http-bind`)
+{% else %}
+        - traefik.http.routers.{{ stack }}.rule=Host(`xmpp.{{ domain }}`) && PathPrefix(`/http-bind`)
+{% endif %}
+{% if domain_use_tls==1 %}
+        - traefik.http.routers.{{ stack }}.tls=true
+        - traefik.http.routers.{{ stack }}.tls.certresolver=le
+        - traefik.http.routers.{{ stack }}.entrypoints=websecure
+{% else %}
+        - traefik.http.routers.{{ stack }}.entrypoints=web
+{% endif %}

@@ -1,4 +1,19 @@
 ---
+stack: hubzilla
+postgres_image: postgres:12-alpine
+nginx_image: nginx:alpine
+redis_image: redis:alpine
+hubzilla_image: sebt3/hubzilla:4.6
+hubzilla_db_name: hub
+hubzilla_db_user: hubzilla
+hubzilla_db_pass: hubzilla
+
+domain: example.com
+email: admin@example.com
+admin_password: admin
+domain_wildcard: 0
+domain_use_tls: 1
 ldap_root: "{{ domain | regex_replace('\\.',',dc=') | regex_replace('^', 'dc=') }}"
 ldap_base: "{{ ldap_root | regex_replace('^', 'ou=people,') }}"
+use_ldap: 0
 

@@ -1,12 +1,16 @@
 version: '3.5'
 networks:
   agent:
+{% if domain_wildcard==1 and export_portainer==1 %}
+  public:
+    external: true
+{% endif %}
 volumes:
   data:
 
 services:
   agent:
-    image: portainer/agent
+    image: {{ agent_image }}
     environment:
       AGENT_CLUSTER_ADDR: tasks.agent
     volumes:
@@ -20,17 +24,38 @@ services:
         constraints: [node.platform.os == linux]
 
   portainer:
-    image: portainer/portainer
+    image: {{ portainer_image }}
     command: -H tcp://tasks.agent:9001 --tlsskipverify
-    ports:
-      - "9000:9000"
     volumes:
       - data:/data
     networks:
       - agent
+{% if domain_wildcard==1 and export_portainer==1 %}
+      - public
+{% endif %}
     deploy:
       mode: replicated
       replicas: 1
       placement:
         constraints: [node.role == manager]
-
+{% if domain_wildcard==1 and export_portainer==1 %}
+      labels:
+        - traefik.enable=true
+        - traefik.http.middlewares.compress.compress=true
+        - traefik.http.routers.{{ stack }}.rule=Host(`portainer.{{ domain }}`)
+        - traefik.http.services.{{ stack }}.loadbalancer.server.port=9000
+{% if domain_use_tls==1 %}
+        - traefik.http.routers.{{ stack }}.tls=true
+        - traefik.http.routers.{{ stack }}.tls.certresolver=le
+        - traefik.http.routers.{{ stack }}.entrypoints=websecure
+        - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+        - traefik.http.routers.redirect-{{ stack }}.rule=Host(`{{ domain }}`)
+        - traefik.http.routers.redirect-{{ stack }}.middlewares=redirect-to-https
+        - traefik.http.routers.redirect-{{ stack }}.entrypoints=web
+{% else %}
+        - traefik.http.routers.{{ stack }}.entrypoints=web
+{% endif %}
+{% else %}
+    ports:
+      - "9000:9000"
+{% endif %}

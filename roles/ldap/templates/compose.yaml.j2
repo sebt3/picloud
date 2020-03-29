@@ -5,13 +5,17 @@ volumes:
   web:
 networks:
   auth:
+{% if domain_wildcard==1 %}
+  public:
+    external: true
+{% endif %}
 configs:
   nginx:
     file: nginx.conf
 
 services:
   ldap:
-    image: sebt3/openldap:2.4.48
+    image: {{ ldap_image }}
     environment:
       LDAP_DOMAIN: "{{ domain }}"
       LDAP_CONFIG_PASSWORD: "{{ admin_password }}"
@@ -23,7 +27,7 @@ services:
     - auth
 
   fusiondirectory:
-    image: sebt3/fusiondirectory:1.3
+    image: {{ fusiondirectory_image }}
     environment:
       LDAP_HOST: "ldap"
       LDAP_DOMAIN: "{{ domain }}"
@@ -34,7 +38,7 @@ services:
     networks:
     - auth
   nginx:
-    image: nginx:alpine
+    image: {{ nginx_image }}
     configs:
       - source: nginx
         target: /etc/nginx/nginx.conf
@@ -42,6 +46,27 @@ services:
       - web:/var/web
     networks:
     - auth
+{% if domain_wildcard!=1 or export_ldap!=1 %}
     ports:
       - target: 80
         published: 8081
+{% else %}
+    - public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.middlewares.compress.compress=true
+        - traefik.http.routers.{{ stack }}.rule=Host(`useradmin.{{ domain }}`)
+        - traefik.http.services.{{ stack }}.loadbalancer.server.port=80
+{% if domain_use_tls==1 %}
+        - traefik.http.routers.{{ stack }}.tls=true
+        - traefik.http.routers.{{ stack }}.tls.certresolver=le
+        - traefik.http.routers.{{ stack }}.entrypoints=websecure
+        - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+        - traefik.http.routers.redirect-{{ stack }}.rule=Host(`{{ domain }}`)
+        - traefik.http.routers.redirect-{{ stack }}.middlewares=redirect-to-https
+        - traefik.http.routers.redirect-{{ stack }}.entrypoints=web
+{% else %}
+        - traefik.http.routers.{{ stack }}.entrypoints=web
+{% endif %}
+{% endif %}

@@ -1,4 +1,17 @@
-hname: !unsafe "{{.Node.Hostname}}"
+---
+stack: monitor
+grafana_image: grafana/grafana:latest
+prometheus_image: prom/prometheus:latest
+node_exporter_image: prom/node-exporter:latest
+cadvisor_image: sebt3/cadvisor:0.35.0
+export_monitor: 0
+
+domain: example.com
+admin_password: admin
+domain_wildcard: 0
+domain_use_tls: 1
 ldap_root: "{{ domain | regex_replace('\\.',',dc=') | regex_replace('^', 'dc=') }}"
 ldap_base: "{{ ldap_root | regex_replace('^', 'ou=people,') }}"
-grafana_external: 0
+use_ldap: 0
+
+hname: !unsafe "{{.Node.Hostname}}"

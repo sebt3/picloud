@@ -1,0 +1,11 @@
+---
+stack: traefik
+traefik_image: traefik:v2.1
+traefik_cert_image: sebt3/traefik-certs:v2
+export_traefik: 0
+
+domain: example.com
+email: admin@example.com
+domain_wildcard: 0
+domain_use_tls: 1
+

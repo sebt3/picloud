@@ -1,4 +1,13 @@
 ---
+stack: prosody
+prosody_image: sebt3/prosody:0.11.4
+
+domain: example.com
+email: admin@example.com
+admin_password: admin
+domain_wildcard: 0
+domain_use_tls: 1
 ldap_root: "{{ domain | regex_replace('\\.',',dc=') | regex_replace('^', 'dc=') }}"
 ldap_base: "{{ ldap_root | regex_replace('^', 'ou=people,') }}"
+use_ldap: 0
 

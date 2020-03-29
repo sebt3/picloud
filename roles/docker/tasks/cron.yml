@@ -1,0 +1,9 @@
+---
+- name: 'set periodic docker system prune'
+  cron:
+    name: 'docker-prune'
+    minute: '0'
+    hour: '*/2'
+    job: 'docker container prune -f'
+
+

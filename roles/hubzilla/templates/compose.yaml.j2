@@ -20,23 +20,23 @@ configs:
 
 services:
   postgres:
-    image: postgres:12-alpine
+    image: {{ postgres_image }}
     environment:
-      POSTGRES_PASSWORD: hubzilla
-      POSTGRES_USER: hubzilla
-      POSTGRES_DB: hub
+      POSTGRES_PASSWORD: {{ hubzilla_db_pass }}
+      POSTGRES_USER: {{ hubzilla_db_user }}
+      POSTGRES_DB: {{ hubzilla_db_name }}
     volumes:
       - voldb:/var/lib/postgresql/data
     networks:
     - hubzilla
 
   redis:
-    image: redis:alpine
+    image: {{ redis_image }}
     networks:
       - hubzilla
 
   nginx:
-    image: nginx:alpine
+    image: {{ nginx_image }}
     configs:
       - source: nginx
         target: /etc/nginx/nginx.conf
@@ -49,20 +49,31 @@ services:
       labels:
         - traefik.enable=true
         - traefik.http.middlewares.compress.compress=true
-        - traefik.http.routers.hubzilla.rule=Host(`{{ domain }}`) 
-        - traefik.http.routers.hubzilla.tls=true
-        - traefik.http.routers.hubzilla.tls.certresolver=le
-        - traefik.http.routers.hubzilla.entrypoints=websecure
-        - traefik.http.routers.hubzilla.middlewares=compress
-        - traefik.http.services.hubzilla.loadbalancer.server.port=80
+        - traefik.http.routers.{{ stack }}.middlewares=compress
+        - traefik.http.services.{{ stack }}.loadbalancer.server.port=80
+{% if domain_wildcard!=1 %}
+        - traefik.http.routers.{{ stack }}.rule=Host(`{{ domain }}`)
+{% else %}
+        - traefik.http.routers.{{ stack }}.rule=Host(`hub.{{ domain }}`)
+{% endif %}
+{% if domain_use_tls==1 %}
+        - traefik.http.routers.{{ stack }}.tls=true
+        - traefik.http.routers.{{ stack }}.tls.certresolver=le
+        - traefik.http.routers.{{ stack }}.entrypoints=websecure
         - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
-        - traefik.http.routers.redirect.rule=Host(`{{ domain }}`)
-        - traefik.http.routers.redirect.middlewares=redirect-to-https
-        - traefik.http.routers.redirect.entrypoints=web
-
+{% if domain_wildcard!=1 %}
+        - traefik.http.routers.redirect-{{ stack }}.rule=Host(`{{ domain }}`)
+{% else %}
+        - traefik.http.routers.redirect-{{ stack }}.rule=Host(`hub.{{ domain }}`)
+{% endif %}
+        - traefik.http.routers.redirect-{{ stack }}.middlewares=redirect-to-https
+        - traefik.http.routers.redirect-{{ stack }}.entrypoints=web
+{% else %}
+        - traefik.http.routers.{{ stack }}.entrypoints=web
+{% endif %}
 
   hubzilla:
-    image: sebt3/hubzilla:4.6
+    image: {{ hubzilla_image }}
     depends_on:
       - postgres
       - nginx
@@ -70,11 +81,15 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_TYPE: pgsql
-      DB_NAME: hub
-      DB_USER: hubzilla
-      DB_PASSWORD: hubzilla
+      DB_NAME: {{ hubzilla_db_name }}
+      DB_USER: {{ hubzilla_db_user }}
+      DB_PASSWORD: {{ hubzilla_db_pass }}
       REDIS_PATH: tcp://redis
+{% if domain_wildcard!=1 %}
       HUBZILLA_DOMAIN: "{{ domain }}"
+{% else %}
+      HUBZILLA_DOMAIN: "hub.{{ domain }}"
+{% endif %}
       HUBZILLA_ADMIN: "{{ email }}"
 {% if use_ldap==1 %}
       LDAP_SERVER: "ldap"

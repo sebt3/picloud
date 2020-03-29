@@ -15,7 +15,11 @@ networks:
   ldap_auth:
     external: true
 {% endif %}
-  
+{% if domain_wildcard==1 %}
+  public:
+    external: true
+{% endif %}
+
 volumes:
   prometheus:
 #    driver: rbd
@@ -30,9 +34,7 @@ volumes:
 
 services:
   grafana:
-    image: grafana/grafana:latest
-    ports:
-    - "3000:3000"
+    image: {{ grafana_image }}
     configs:
     - source: datasource
       target: /etc/grafana/provisioning/datasources/prometheus.yaml
@@ -41,10 +43,6 @@ services:
       target: /etc/grafana/ldap.toml
 {% endif %}
     environment:
-{% if grafana_external==1 %}
-      GF_SERVER_ROOT_URL: "https://{{ domain }}/external/grafana"
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-{% endif %}
       GF_SERVER_ENABLE_GZIP: "true"
       GF_SECURITY_ADMIN_PASSWORD: "{{ admin_password }}"
 {% if use_ldap==1 %}
@@ -59,19 +57,32 @@ services:
 {% if use_ldap==1 %}
     - ldap_auth
 {% endif %}
-{% if grafana_external==1 %}
+{% if domain_wildcard!=1 %}
+    ports:
+    - "3000:3000"
+{% else %}
+    - public
     deploy:
       labels:
-      - traefik.enable=true
-      - traefik.http.routers.grafana.rule=Host(`{{ domain }}`) && PathPrefix(`/external/grafana`)
-      - traefik.http.routers.grafana.tls=true
-      - traefik.http.routers.grafana.tls.certresolver=le
-      - traefik.http.routers.grafana.entrypoints=websecure
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
+        - traefik.enable=true
+        - traefik.http.middlewares.compress.compress=true
+        - traefik.http.routers.{{ stack }}.rule=Host(`monitor.{{ domain }}`)
+        - traefik.http.services.{{ stack }}.loadbalancer.server.port=3000
+{% if domain_use_tls==1 %}
+        - traefik.http.routers.{{ stack }}.tls=true
+        - traefik.http.routers.{{ stack }}.tls.certresolver=le
+        - traefik.http.routers.{{ stack }}.entrypoints=websecure
+        - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+        - traefik.http.routers.redirect-{{ stack }}.rule=Host(`{{ domain }}`)
+        - traefik.http.routers.redirect-{{ stack }}.middlewares=redirect-to-https
+        - traefik.http.routers.redirect-{{ stack }}.entrypoints=web
+{% else %}
+        - traefik.http.routers.{{ stack }}.entrypoints=web
 {% endif %}
-    
+{% endif %}
+
   prometheus:
-    image: prom/prometheus:latest
+    image: {{ prometheus_image }}
     configs:
     - source: prometheus
       target: /etc/prometheus/prometheus.yml
@@ -83,7 +94,7 @@ services:
     - net
 
   node-exporter:
-    image: prom/node-exporter:latest
+    image: {{ node_exporter_image }}
     hostname: "{{ hname }}"
     command:
     - '--path.procfs=/host/proc'
@@ -101,7 +112,7 @@ services:
       mode: global
 
   cadvisor:
-    image: sebt3/cadvisor:0.35.0
+    image: {{ cadvisor_image }}
     command: -logtostderr -docker_only
     hostname: "{{ hname }}"
     volumes:

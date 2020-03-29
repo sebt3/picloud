@@ -1,0 +1,9 @@
+---
+stack: portainer
+agent_image: portainer/agent
+portainer_image: portainer/portainer
+export_portainer: 0
+
+domain: example.com
+domain_wildcard: 0
+domain_use_tls: 1
